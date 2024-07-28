@@ -3,6 +3,9 @@ from groq import AsyncGroq
 from octoai.client import OctoAI
 from dotenv import load_dotenv
 from utils import load_allowed_users, save_allowed_users, is_user_allowed, add_allowed_user, remove_allowed_user, set_user_auth_state, get_user_auth_state
+from langchain_community.llms import Groq
+from langchain_community.tools import DuckDuckGoSearchRun
+from langchain.agents import initialize_agent, AgentType
 
 load_dotenv()
 
@@ -23,3 +26,8 @@ MODELS = {
 }
 
 ADMIN_ID = int(os.getenv('ADMIN_ID'))
+
+# Инициализация LangChain и инструмента поиска
+llm = Groq(model_name="llama3-70b-8192", groq_api_key=GROQ_API_KEY)
+search_tool = DuckDuckGoSearchRun()
+agent = initialize_agent([search_tool], llm, agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION, verbose=True)

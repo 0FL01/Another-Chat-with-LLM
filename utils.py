@@ -2,7 +2,6 @@ import html
 import re
 import os
 from typing import List, Dict
-from duckduckgo_search import DDGS
 
 # Функции форматирования
 
@@ -43,12 +42,14 @@ def split_long_message(message, max_length=4000):
     
     return parts
 
-# Функции поиска
-
-def search_duckduckgo(query, region="wt-wt", safesearch="moderate", timelimit=None, max_results=5):
-    with DDGS() as ddgs:
-        results = ddgs.text(keywords=query, region=region, safesearch=safesearch, timelimit=timelimit, max_results=max_results)
-        return results
+# Функция поиска с использованием LangChain
+def search_with_langchain(query: str) -> str:
+    from config import agent  # Импортируем agent здесь, чтобы избежать циклического импорта
+    try:
+        result = agent.run(query)
+        return result
+    except Exception as e:
+        return f"Произошла ошибка при поиске: {str(e)}"
 
 # Функции авторизации
 

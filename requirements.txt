@@ -5,3 +5,5 @@ SpeechRecognition
 duckduckgo_search
 octoai
 watchdog
+langchain
+langchain-community
