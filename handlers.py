@@ -1,4 +1,5 @@
-from telegram import Update, KeyboardButton, ReplyKeyboardMarkup, constants
+from telegram import Update, KeyboardButton, ReplyKeyboardMarkup
+from telegram.constants import ParseMode, ChatAction
 from telegram.ext import ContextTypes
 from config import chat_history, groq_client, octoai_client, MODELS, ADMIN_ID, search_tool, user_settings
 from utils import format_html, split_long_message, is_user_allowed, add_allowed_user, remove_allowed_user, set_user_auth_state, get_user_auth_state
@@ -48,7 +49,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     set_user_auth_state(user_id, True)
     await update.message.reply_text(
         '<b>Привет!</b> Я бот, который может отвечать на вопросы и распознавать речь.',
-        parse_mode=constants.ParseMode.HTML,
+        parse_mode=ParseMode.HTML,
         reply_markup=get_main_keyboard()
     )
 
@@ -58,7 +59,7 @@ async def clear(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_id in chat_history:
         del chat_history[user_id]
     logger.info(f"Chat history cleared for user {user_id}")
-    await update.message.reply_text('<b>История чата очищена.</b>', parse_mode=constants.ParseMode.HTML)
+    await update.message.reply_text('<b>История чата очищена.</b>', parse_mode=ParseMode.HTML, reply_markup=get_main_keyboard())
 
 @check_auth
 async def change_model(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -71,47 +72,40 @@ async def change_model(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def set_online_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user_settings[user_id]['mode'] = 'online'
-    await update.message.reply_text('Режим изменен на <b>онлайн</b>', parse_mode=constants.ParseMode.HTML)
+    await update.message.reply_text('Режим изменен на <b>онлайн</b>', parse_mode=ParseMode.HTML, reply_markup=get_main_keyboard())
 
 @check_auth
 async def set_offline_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user_settings[user_id]['mode'] = 'offline'
-    await update.message.reply_text('Режим изменен на <b>оффлайн</b>', parse_mode=constants.ParseMode.HTML)
+    await update.message.reply_text('Режим изменен на <b>оффлайн</b>', parse_mode=ParseMode.HTML, reply_markup=get_main_keyboard())
 
 @check_auth
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
     text = update.message.text
 
     if text == "Очистить контекст":
         await clear(update, context)
-        return
     elif text == "Сменить модель":
         await change_model(update, context)
-        return
     elif text == "Онлайн режим":
         await set_online_mode(update, context)
-        return
     elif text == "Оффлайн режим":
         await set_offline_mode(update, context)
-        return
     elif text == "Назад":
         await update.message.reply_text(
             'Выберите действие:',
             reply_markup=get_main_keyboard()
         )
-        return
     elif text in MODELS:
         context.user_data['model'] = text
         await update.message.reply_text(
             f'Модель изменена на <b>{text}</b>',
-            parse_mode=constants.ParseMode.HTML,
+            parse_mode=ParseMode.HTML,
             reply_markup=get_main_keyboard()
         )
-        return
-
-    await process_message(update, context, text)
+    else:
+        await process_message(update, context, text)
 
 async def process_message(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
     user_id = update.effective_user.id
@@ -147,6 +141,9 @@ async def process_message(update: Update, context: ContextTypes.DEFAULT_TYPE, te
     messages = [{"role": "system", "content": SYSTEM_MESSAGE}] + chat_history[user_id]
 
     try:
+        # Начинаем показывать "печатание" перед запросом к модели
+        await update.message.chat.send_action(action=ChatAction.TYPING)
+
         if MODELS[selected_model]["provider"] == "groq":
             response = await groq_client.chat.completions.create(
                 messages=messages,
@@ -174,10 +171,10 @@ async def process_message(update: Update, context: ContextTypes.DEFAULT_TYPE, te
         message_parts = split_long_message(formatted_response)
         
         for part in message_parts:
-            await update.message.reply_text(part, parse_mode=constants.ParseMode.HTML)
+            await update.message.reply_text(part, parse_mode=ParseMode.HTML)
     except Exception as e:
         logger.error(f"Error processing request for user {user_id}: {str(e)}")
-        await update.message.reply_text(f"<b>Ошибка:</b> Произошла ошибка при обработке вашего запроса: <code>{str(e)}</code>", parse_mode=constants.ParseMode.HTML)
+        await update.message.reply_text(f"<b>Ошибка:</b> Произошла ошибка при обработке вашего запроса: <code>{str(e)}</code>", parse_mode=ParseMode.HTML)
 
 @check_auth
 async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
