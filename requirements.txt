@@ -1,7 +1,3 @@
 python-telegram-bot
-groq
 python-dotenv
-duckduckgo_search
-langchain==0.0.292
-octoai
 watchdog

@@ -1,11 +1,10 @@
 from telegram import Update, KeyboardButton, ReplyKeyboardMarkup
 from telegram.constants import ParseMode, ChatAction
 from telegram.ext import ContextTypes
-from config import chat_history, groq_client, octoai_client, MODELS, ADMIN_ID, search_tool, user_settings
+from config import chat_history, ollama_client, MODELS, ADMIN_ID, user_settings, OLLAMA_API_URL
 from utils import format_html, split_long_message, is_user_allowed, add_allowed_user, remove_allowed_user, set_user_auth_state, get_user_auth_state
-from octoai.text_gen import ChatMessage
 import logging
-import os
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +13,7 @@ SYSTEM_MESSAGE = """Ты высокоинтеллектуальный ИИ-ас�
 def get_main_keyboard():
     keyboard = [
         [KeyboardButton("Очистить контекст"), KeyboardButton("Сменить модель")],
-        [KeyboardButton("Онлайн режим"), KeyboardButton("Оффлайн режим")]
+        [KeyboardButton("Оффлайн режим")]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
@@ -69,12 +68,6 @@ async def change_model(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 @check_auth
-async def set_online_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    user_settings[user_id]['mode'] = 'online'
-    await update.message.reply_text('Режим изменен на <b>онлайн</b>', parse_mode=ParseMode.HTML, reply_markup=get_main_keyboard())
-
-@check_auth
 async def set_offline_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user_settings[user_id]['mode'] = 'offline'
@@ -88,8 +81,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await clear(update, context)
     elif text == "Сменить модель":
         await change_model(update, context)
-    elif text == "Онлайн режим":
-        await set_online_mode(update, context)
     elif text == "Оффлайн режим":
         await set_offline_mode(update, context)
     elif text == "Назад":
@@ -107,6 +98,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await process_message(update, context, text)
 
+
 async def process_message(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
     user_id = update.effective_user.id
     
@@ -119,50 +111,20 @@ async def process_message(update: Update, context: ContextTypes.DEFAULT_TYPE, te
     selected_model = context.user_data.get('model', list(MODELS.keys())[0])
     logger.info(f"Selected model for user {user_id}: {selected_model}")
 
-    mode = user_settings[user_id]['mode']
-    logger.info(f"Current mode for user {user_id}: {mode}")
-
-    search_response = ""
-    if mode == 'online':
-        need_search = len(text.split()) > 3 and not text.lower().startswith(("перевод:", "переведи:", "translate:"))
-        if need_search:
-            try:
-                search_query = ' '.join(text.split()[:10])
-                logger.info(f"Searching for: {search_query}")
-                search_results = search_tool.run(search_query)
-                search_response = f"Результаты поиска:\n\n{search_results}\n\n"
-                chat_history[user_id].append({"role": "system", "content": search_response})
-                logger.info(f"Search results for user {user_id}: {search_results[:100]}...")
-            except Exception as e:
-                logger.error(f"Search error for user {user_id}: {str(e)}")
-                search_response = "Не удалось выполнить поиск.\n\n"
-                chat_history[user_id].append({"role": "system", "content": search_response})
-
     messages = [{"role": "system", "content": SYSTEM_MESSAGE}] + chat_history[user_id]
 
     try:
-        # Начинаем показывать "печатание" перед запросом к модели
         await update.message.chat.send_action(action=ChatAction.TYPING)
 
-        if MODELS[selected_model]["provider"] == "groq":
-            response = await groq_client.chat.completions.create(
-                messages=messages,
-                model=MODELS[selected_model]["id"],
-                temperature=0.7,
-                max_tokens=MODELS[selected_model]["max_tokens"],
-            )
-            bot_response = response.choices[0].message.content
-        elif MODELS[selected_model]["provider"] == "octoai":
-            octoai_messages = [ChatMessage(content=msg["content"], role=msg["role"]) for msg in messages]
-            response = octoai_client.text_gen.create_chat_completion(
-                messages=octoai_messages,
-                model=MODELS[selected_model]["id"],
-                temperature=0.7,
-                max_tokens=MODELS[selected_model]["max_tokens"],
-            )
-            bot_response = response.choices[0].message.content
-        else:
-            raise ValueError(f"Unknown provider for model {selected_model}")
+        response = await ollama_client.post(
+            OLLAMA_API_URL,
+            json={
+                "model": MODELS[selected_model]["id"],
+                "messages": messages
+            }
+        )
+        response.raise_for_status()
+        bot_response = response.json()["message"]["content"]
 
         chat_history[user_id].append({"role": "assistant", "content": bot_response})
         logger.info(f"Sent response to user {user_id}")
@@ -176,36 +138,13 @@ async def process_message(update: Update, context: ContextTypes.DEFAULT_TYPE, te
         logger.error(f"Error processing request for user {user_id}: {str(e)}")
         await update.message.reply_text(f"<b>Ошибка:</b> Произошла ошибка при обработке вашего запроса: <code>{str(e)}</code>", parse_mode=ParseMode.HTML)
 
+
+
 @check_auth
 async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     logger.info(f"Received voice message from user {user_id}")
-    temp_filename = f"tempvoice{user_id}.ogg"
-
-    try:
-        voice = await update.message.voice.get_file()
-        voice_file = await voice.download_as_bytearray()
-        with open(temp_filename, "wb") as f:
-            f.write(voice_file)
-        with open(temp_filename, "rb") as audio_file:
-            transcription = await groq_client.audio.transcriptions.create(
-                file=(temp_filename, audio_file.read()),
-                model="whisper-large-v3",
-                language="ru"
-            )
-
-        recognized_text = transcription.text
-        logger.info(f"Voice message from user {user_id} recognized: {recognized_text}")
-
-        await process_message(update, context, recognized_text)
-
-    except Exception as e:
-        logger.error(f"Error processing voice message for user {user_id}: {str(e)}")
-        await update.message.reply_text(f"Произошла ошибка при обработке голосового сообщения: {str(e)}")
-    finally:
-        if os.path.exists(temp_filename):
-            os.remove(temp_filename)
-            logger.info(f"Temporary file {temp_filename} removed")
+    await update.message.reply_text("Извините, обработка голосовых сообщений временно недоступна.")
 
 @check_auth
 async def add_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
