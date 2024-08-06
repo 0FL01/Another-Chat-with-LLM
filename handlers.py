@@ -1,10 +1,9 @@
 from telegram import Update, KeyboardButton, ReplyKeyboardMarkup
 from telegram.constants import ParseMode, ChatAction
 from telegram.ext import ContextTypes
-from config import chat_history, ollama_client, MODELS, ADMIN_ID, user_settings, OLLAMA_API_URL
+from config import chat_history, openai_client, MODELS, ADMIN_ID, user_settings
 from utils import format_html, split_long_message, is_user_allowed, add_allowed_user, remove_allowed_user, set_user_auth_state, get_user_auth_state
 import logging
-import json
 
 logger = logging.getLogger(__name__)
 
@@ -116,15 +115,14 @@ async def process_message(update: Update, context: ContextTypes.DEFAULT_TYPE, te
     try:
         await update.message.chat.send_action(action=ChatAction.TYPING)
 
-        response = await ollama_client.post(
-            OLLAMA_API_URL,
-            json={
-                "model": MODELS[selected_model]["id"],
-                "messages": messages
-            }
+        response = await openai_client.chat.completions.create(
+            model=MODELS[selected_model]["id"],
+            messages=messages,
+            temperature=0.7,
+            max_tokens=MODELS[selected_model]["max_tokens"]
         )
-        response.raise_for_status()
-        bot_response = response.json()["message"]["content"]
+
+        bot_response = response.choices[0].message.content
 
         chat_history[user_id].append({"role": "assistant", "content": bot_response})
         logger.info(f"Sent response to user {user_id}")

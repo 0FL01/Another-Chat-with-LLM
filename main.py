@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 async def error_handler(update, context):
     logger.error(f"Exception while handling an update: {context.error}")
 
-async def shutdown(application):
+async def shutdown():
     await ollama_client.aclose()
     logger.info("Ollama client closed.")
 
@@ -30,8 +30,8 @@ def main():
 
     application.add_error_handler(error_handler)
 
-    # Добавляем функцию закрытия клиента Ollama при завершении работы бота
-    application.add_shutdown_callback(shutdown)
+    # Use the stop callback to gracefully shutdown the bot
+    application.post_stop = shutdown
 
     application.run_polling()
 
