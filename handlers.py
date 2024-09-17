@@ -56,7 +56,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         '<b>Привет!</b> Я бот, который может отвечать на вопросы и распознавать речь.',
         parse_mode=ParseMode.HTML,
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
+=======
+>>>>>>> testing
         reply_markup=get_main_keyboard()
     )
 
@@ -147,6 +150,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         '<b>Привет!</b> Я бот, который может отвечать на вопросы и распознавать речь.',
         parse_mode=ParseMode.HTML,
+<<<<<<< HEAD
+>>>>>>> testing
+=======
 >>>>>>> testing
         reply_markup=get_main_keyboard()
     )
@@ -172,10 +178,15 @@ async def set_online_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_settings[user_id]['mode'] = 'online'
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
     await update.message.reply_text('Режим изменен на <b>онлайн</b>', parse_mode=ParseMode.HTML, reply_markup=get_main_keyboard())
 =======
     context.user_data['model'] = "Gemma 2 9B-8192"
     await update.message.reply_text('Режим изменен на <b>онлайн</b>. Модель установлена на <b>Gemma 2 9B-8192</b>', parse_mode=constants.ParseMode.HTML)
+>>>>>>> testing
+=======
+    context.user_data['model'] = "Gemini Flash 1M"
+    await update.message.reply_text('Режим изменен на <b>онлайн</b>. Модель установлена на <b>Gemini Flash 1M</b>', parse_mode=ParseMode.HTML)
 >>>>>>> testing
 =======
     context.user_data['model'] = "Gemini Flash 1M"
@@ -188,6 +199,7 @@ async def set_offline_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_settings[user_id]['mode'] = 'offline'
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
     await update.message.reply_text('Режим изменен на <b>оффлайн</b>', parse_mode=ParseMode.HTML, reply_markup=get_main_keyboard())
 =======
     context.user_data['model'] = "Gemma 2 9B-8192"
@@ -197,6 +209,16 @@ async def set_offline_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @check_auth
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
+=======
+    context.user_data['model'] = "Gemini Flash 1M"
+    await update.message.reply_text('Режим изменен на <b>оффлайн</b>. Модель установлена на <b>Gemini Flash 1M</b>', parse_mode=ParseMode.HTML)
+
+@check_auth
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text or ""
+    image = update.message.photo[-1] if update.message.photo else None
+    document = update.message.document
+>>>>>>> testing
 =======
     context.user_data['model'] = "Gemini Flash 1M"
     await update.message.reply_text('Режим изменен на <b>оффлайн</b>. Модель установлена на <b>Gemini Flash 1M</b>', parse_mode=ParseMode.HTML)
@@ -229,13 +251,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=get_main_keyboard()
         )
 <<<<<<< HEAD
+<<<<<<< HEAD
     else:
         await process_message(update, context, text)
 =======
+=======
+>>>>>>> testing
     elif document:
         await process_document(update, context, document)
     else:
         await process_message(update, context, text, image)
+<<<<<<< HEAD
+>>>>>>> testing
+=======
 >>>>>>> testing
 
 
@@ -331,7 +359,10 @@ async def process_message(update: Update, context: ContextTypes.DEFAULT_TYPE, te
 
     try:
 <<<<<<< HEAD
+<<<<<<< HEAD
         # Начинаем показывать "печатание" перед запросом к модели
+=======
+>>>>>>> testing
 =======
 >>>>>>> testing
         await update.message.chat.send_action(action=ChatAction.TYPING)
@@ -379,6 +410,10 @@ async def process_message(update: Update, context: ContextTypes.DEFAULT_TYPE, te
         logger.error(f"Error processing request for user {user_id}: {str(e)}")
         await update.message.reply_text(f"<b>Ошибка:</b> Произошла ошибка при обработке вашего запроса: <code>{str(e)}</code>", parse_mode=ParseMode.HTML)
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+
+>>>>>>> testing
 =======
 
 >>>>>>> testing

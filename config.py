@@ -34,7 +34,10 @@ chat_history = {}
 user_settings = {}
 
 MODELS = {
+<<<<<<< HEAD
 
+=======
+>>>>>>> testing
     "Gemini 1.5 Flash 1M": {"id": "google/gemini-flash-1.5", "max_tokens": 1000000, "provider": "openrouter", "vision": True},
     "GPT 4o mini 128K": {"id": "openai/gpt-4o-mini", "max_tokens": 128000, "provider": "openrouter", "vision": True},
     "Gemma 2 9B 8K": {"id": "gemma2-9b-it", "max_tokens": 8192, "provider": "groq"},
