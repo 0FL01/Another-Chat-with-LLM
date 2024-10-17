@@ -2,7 +2,7 @@ import html
 import re
 import os
 from typing import List, Dict, Tuple
-from duckduckgo_search import DDGS
+#from duckduckgo_search import DDGS
 from enum import Enum
 
 # Функции форматирования
@@ -14,14 +14,26 @@ def format_html(text):
         escaped_code = html.escape(code.strip())
         return f'<pre><code class="{language}">{escaped_code}</code></pre>'
 
+    # Заменяем блоки кода
     text = re.sub(r'```(\w+)?\n(.*?)```', code_block_replacer, text, flags=re.DOTALL)
     text = re.sub(r'`(\w+)\n(.*?)`', code_block_replacer, text, flags=re.DOTALL)
+    
+    # Заменяем маркированные списки
     text = re.sub(r'^\* ', '• ', text, flags=re.MULTILINE)
+    
+    # Заменяем жирный и курсивный текст
     text = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', text)
     text = re.sub(r'\*(.*?)\*', r'<i>\1</i>', text)
+    
+    # Заменяем инлайн-код
     text = re.sub(r'`(.*?)`', lambda m: f'<code>{html.escape(m.group(1))}</code>', text)
     
+    # Удаляем все оставшиеся HTML-теги, кроме разрешенных
+    allowed_tags = ['b', 'i', 'u', 's', 'a', 'code', 'pre']
+    text = re.sub(r'<(?!/?({})).*?>'.format('|'.join(allowed_tags)), '', text)
+    
     return text
+
 
 def split_long_message(message, max_length=4000):
     parts = []
@@ -46,10 +58,10 @@ def split_long_message(message, max_length=4000):
 
 # Функции поиска
 
-def search_duckduckgo(query, region="wt-wt", safesearch="moderate", timelimit=None, max_results=5):
-    with DDGS() as ddgs:
-        results = ddgs.text(keywords=query, region=region, safesearch=safesearch, timelimit=timelimit, max_results=max_results)
-        return results
+#def search_duckduckgo(query, region="wt-wt", safesearch="moderate", timelimit=None, max_results=5):
+#    with DDGS() as ddgs:
+#        results = ddgs.text(keywords=query, region=region, safesearch=safesearch, timelimit=timelimit, max_results=max_results)
+#        return results
 
 # Функции авторизации
 

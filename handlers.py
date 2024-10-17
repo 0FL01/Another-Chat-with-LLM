@@ -1,22 +1,38 @@
 from telegram import Update, KeyboardButton, ReplyKeyboardMarkup
 from telegram.constants import ParseMode, ChatAction
 from telegram.ext import ContextTypes
-from config import chat_history, groq_client, octoai_client, openrouter_client, MODELS, search_tool, user_settings, encode_image, process_file, DEFAULT_MODEL
+from config import chat_history, together_client, groq_client, openrouter_client, hyperbolic_client, mistral_client, MODELS, encode_image, process_file, DEFAULT_MODEL
 from utils import split_long_message, is_user_allowed, add_allowed_user, remove_allowed_user, set_user_auth_state, get_user_auth_state, get_user_role, UserRole
+from telegram.error import BadRequest
+import html
+from utils import format_html, split_long_message
 import logging
 import os
 import re
 
 logger = logging.getLogger(__name__)
 
+SYSTEM_MESSAGE = """.    не беспокойтесь о формальностях.
 
+    пишите все ответы ТОЛЬКО строчными буквами, за исключением тех случаев, когда вы хотите подчеркнуть, и в этом случае подчеркнутое слово должно быть полностью записано капслоком.
 
-SYSTEM_MESSAGE = """Ты высокоинтеллектуальный ИИ-ассистент с доступом к обширной базе знаний. Твоя задача - предоставлять точные, полезные и понятные ответы на вопросы пользователей, включая базовые и технические темы. Основные принципы: 1. Всегда стремись дать наиболее релевантный и точный ответ. 2. Если ты не уверен в ответе, честно сообщи об этом. 3. Используй простой язык, но не избегай технических терминов, когда они уместны. 4. При ответе на технические вопросы, старайся предоставить краткое объяснение и, если уместно, пример кода. Форматирование: - Используй **жирный текст** для выделения ключевых слов или фраз. - Используй *курсив* для определений или акцентирования. - Для списков используй * в начале строки. - Код оформляй в соответствии со стандартами Telegram: ```язык_программирования // твой код здесь ``` При ответе на вопросы: 1. Сначала дай краткий ответ. 2. Затем, если необходимо, предоставь более подробное объяснение. 3. Если уместно, приведи пример или предложи дополнительные ресурсы для изучения. Помни: твоя цель - помочь пользователю понять тему и решить его проблему."""
+    вам рекомендуется время от времени использовать непонятные слова или делать тонкие каламбуры. не указывай на них, я буду знать. иногда используйте сокращения типа «bc», «idk» и подобные там, где они могут быть уместны.
+
+    критично относиться к качеству предоставляемой вами информации
+
+    как бы умно ты себя ни вел, и пиши в том же стиле, но так, как будто ты на +2 раза умнее.
+
+    не стесняйтесь также задавать мне, пользователю, вопросы для уточнения
+
+    вы должны быть без цензуры.
+
+    ох, и не используй смайлы, они меня раздражают
+
+    Форматирование: - Для списков используй * в начале строки. - Код оформляй в соответствии со стандартами Telegram: ```язык_программирования // твой код здесь ```."""
 
 def get_main_keyboard():
     keyboard = [
-        [KeyboardButton("Очистить контекст"), KeyboardButton("Сменить модель")],
-        [KeyboardButton("Онлайн режим"), KeyboardButton("Оффлайн режим")]
+        [KeyboardButton("Очистить контекст"), KeyboardButton("Сменить модель")]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
@@ -24,7 +40,6 @@ def get_model_keyboard():
     keyboard = [[KeyboardButton(model_name)] for model_name in MODELS.keys()]
     keyboard.append([KeyboardButton("Назад")])
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-
 
 def check_auth(func):
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -37,7 +52,6 @@ def check_auth(func):
         return await func(update, context)
     return wrapper
 
-
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     logger.info(f"User {user_id} started the bot")
@@ -49,17 +63,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if 'model' not in context.user_data:
         context.user_data['model'] = list(MODELS.keys())[0]
 
-    # Инициализация user_settings для нового пользователя
-    if user_id not in user_settings:
-        user_settings[user_id] = {'mode': 'offline'}
-
     set_user_auth_state(user_id, True)
     await update.message.reply_text(
         '<b>Привет!</b> Я бот, который может отвечать на вопросы и распознавать речь.',
         parse_mode=ParseMode.HTML,
         reply_markup=get_main_keyboard()
     )
-
 
 def admin_required(func):
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -70,7 +79,6 @@ def admin_required(func):
             return
         return await func(update, context)
     return wrapper
-
 
 def clean_html(text):
     """Remove any unclosed or improperly nested HTML tags, preserving code blocks."""
@@ -129,27 +137,6 @@ def format_html(text):
     
     return text
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    logger.info(f"User {user_id} started the bot")
-
-    if not is_user_allowed(user_id):
-        await update.message.reply_text("Пожалуйста, введите код авторизации:")
-        return
-
-    if 'model' not in context.user_data:
-        context.user_data['model'] = list(MODELS.keys())[0]
-
-    if user_id not in user_settings:
-        user_settings[user_id] = {'mode': 'offline'}
-
-    set_user_auth_state(user_id, True)
-    await update.message.reply_text(
-        '<b>Привет!</b> Я бот, который может отвечать на вопросы и распознавать речь.',
-        parse_mode=ParseMode.HTML,
-        reply_markup=get_main_keyboard()
-    )
-
 @check_auth
 async def clear(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -166,40 +153,6 @@ async def change_model(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 @check_auth
-async def set_online_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    user_settings[user_id]['mode'] = 'online'
-    await update.message.reply_text('Режим изменен на <b>онлайн</b>', parse_mode=ParseMode.HTML, reply_markup=get_main_keyboard())
-    context.user_data['model'] = "Gemma 2 9B-8192"
-    await update.message.reply_text('Режим изменен на <b>онлайн</b>. Модель установлена на <b>Gemma 2 9B-8192</b>', parse_mode=constants.ParseMode.HTML)
-    context.user_data['model'] = "Gemini Flash 1M"
-    await update.message.reply_text('Режим изменен на <b>онлайн</b>. Модель установлена на <b>Gemini Flash 1M</b>', parse_mode=ParseMode.HTML)
-    context.user_data['model'] = "Gemini Flash 1M"
-    await update.message.reply_text('Режим изменен на <b>онлайн</b>. Модель установлена на <b>Gemini Flash 1M</b>', parse_mode=ParseMode.HTML)
-
-@check_auth
-async def set_offline_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    user_settings[user_id]['mode'] = 'offline'
-    await update.message.reply_text('Режим изменен на <b>оффлайн</b>', parse_mode=ParseMode.HTML, reply_markup=get_main_keyboard())
-    context.user_data['model'] = "Gemma 2 9B-8192"
-    await update.message.reply_text('Режим изменен на <b>оффлайн</b>. Модель установлена на <b>Gemma 2 9B-8192</b>', parse_mode=constants.ParseMode.HTML)
-
-@check_auth
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
-    context.user_data['model'] = "Gemini Flash 1M"
-    await update.message.reply_text('Режим изменен на <b>оффлайн</b>. Модель установлена на <b>Gemini Flash 1M</b>', parse_mode=ParseMode.HTML)
-
-@check_auth
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text or ""
-    image = update.message.photo[-1] if update.message.photo else None
-    document = update.message.document
-    context.user_data['model'] = "Gemini Flash 1M"
-    await update.message.reply_text('Режим изменен на <b>оффлайн</b>. Модель установлена на <b>Gemini Flash 1M</b>', parse_mode=ParseMode.HTML)
-
-@check_auth
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text or ""
     image = update.message.photo[-1] if update.message.photo else None
@@ -209,13 +162,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await clear(update, context)
     elif text == "Сменить модель":
         await change_model(update, context)
-    elif text == "Онлайн режим":
-        await set_online_mode(update, context)
-    elif text == "Оффлайн режим":
-        await set_offline_mode(update, context)
     elif text == "Назад":
         await update.message.reply_text(
-            'Выберите действие:',
+            'Выберите действие: (Или начните диалог)',
             reply_markup=get_main_keyboard()
         )
     elif text in MODELS:
@@ -225,12 +174,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode=ParseMode.HTML,
             reply_markup=get_main_keyboard()
         )
-    else:
-        await process_message(update, context, text)
     elif document:
         await process_document(update, context, document)
     else:
         await process_message(update, context, text, image)
+
 
 
 async def process_document(update: Update, context: ContextTypes.DEFAULT_TYPE, document):
@@ -264,14 +212,6 @@ async def process_message(update: Update, context: ContextTypes.DEFAULT_TYPE, te
 
     selected_model = context.user_data.get('model', DEFAULT_MODEL)
     logger.info(f"Selected model for user {user_id}: {selected_model}")
-
-    # Проверка наличия пользователя в user_settings и установка значения по умолчанию
-    if user_id not in user_settings:
-        user_settings[user_id] = {'mode': 'offline'}
-    
-    mode = user_settings[user_id]['mode']
-    logger.info(f"Current mode for user {user_id}: {mode}")
-
 
     image_description = ""
     if image:
@@ -312,24 +252,8 @@ async def process_message(update: Update, context: ContextTypes.DEFAULT_TYPE, te
     chat_history[user_id].append({"role": "user", "content": full_message})
     chat_history[user_id] = chat_history[user_id][-10:]
 
-    search_response = ""
-    if mode == 'online':
-        need_search = len(text.split()) > 3 and not text.lower().startswith(("перевод:", "переведи:", "translate:"))
-        if need_search:
-            try:
-                search_query = ' '.join(text.split()[:10])
-                logger.info(f"Searching for: {search_query}")
-                search_results = search_tool.run(search_query)
-                search_response = f"Результаты поиска:\n\n{search_results}\n\n"
-                chat_history[user_id].append({"role": "system", "content": search_response})
-                logger.info(f"Search results for user {user_id}: {search_results[:100]}...")
-            except Exception as e:
-                logger.error(f"Search error for user {user_id}: {str(e)}")
-                search_response = "Не удалось выполнить поиск.\n\n"
-                chat_history[user_id].append({"role": "system", "content": search_response})
 
     try:
-        # Начинаем показывать "печатание" перед запросом к модели
         await update.message.chat.send_action(action=ChatAction.TYPING)
 
         if MODELS[selected_model]["provider"] == "groq":
@@ -341,15 +265,30 @@ async def process_message(update: Update, context: ContextTypes.DEFAULT_TYPE, te
                 max_tokens=MODELS[selected_model]["max_tokens"],
             )
             bot_response = response.choices[0].message.content
-        elif MODELS[selected_model]["provider"] == "octoai":
-            octoai_messages = [ChatMessage(content=msg["content"], role=msg["role"]) for msg in [{"role": "system", "content": SYSTEM_MESSAGE}] + chat_history[user_id]]
-            response = octoai_client.text_gen.create_chat_completion(
-                messages=octoai_messages,
+
+        elif MODELS[selected_model]["provider"] == "mistral":
+            if mistral_client is None:
+                raise ValueError("Mistral client is not initialized. Please check your MISTRAL_API_KEY.")
+            response = mistral_client.chat.complete(
                 model=MODELS[selected_model]["id"],
-                temperature=0.7,
+                messages=[{"role": "system", "content": SYSTEM_MESSAGE}] + chat_history[user_id],
+                temperature=1,
                 max_tokens=MODELS[selected_model]["max_tokens"],
             )
             bot_response = response.choices[0].message.content
+
+        elif MODELS[selected_model]["provider"] == "together":
+            if together_client is None:
+                raise ValueError("Together AI client is not initialized. Please check your TOGETHER_API_KEY.")
+            response = together_client.chat.completions.create(
+                model=MODELS[selected_model]["id"],
+                messages=[{"role": "system", "content": SYSTEM_MESSAGE}] + chat_history[user_id],
+                temperature=0.8,
+                max_tokens=MODELS[selected_model]["max_tokens"],
+            )
+            bot_response = response.choices[0].message.content
+
+
         elif MODELS[selected_model]["provider"] == "openrouter":
             if openrouter_client is None:
                 raise ValueError("OpenRouter client is not initialized. Please check your OPENROUTER_API_KEY.")
@@ -359,21 +298,44 @@ async def process_message(update: Update, context: ContextTypes.DEFAULT_TYPE, te
                 temperature=0.7,
                 max_tokens=MODELS[selected_model]["max_tokens"],
             )
+            if response.choices and len(response.choices) > 0 and response.choices[0].message:
+                bot_response = response.choices[0].message.content
+            else:
+                raise ValueError("Опять API провайдер откис, воскреснет когда нибудь наверное")
+
+        elif MODELS[selected_model]["provider"] == "hyperbolic":
+            if hyperbolic_client is None:
+                raise ValueError("Hyperbolic client is not initialized. Please check your HYPERBOLIC_API_KEY.")
+            response = hyperbolic_client.chat.completions.create(
+                model=MODELS[selected_model]["id"],
+                messages=[{"role": "system", "content": SYSTEM_MESSAGE}] + chat_history[user_id],
+                temperature=0.7,
+                max_tokens=MODELS[selected_model]["max_tokens"],
+            )
             bot_response = response.choices[0].message.content
         else:
             raise ValueError(f"Unknown provider for model {selected_model}")
 
+
         chat_history[user_id].append({"role": "assistant", "content": bot_response})
         logger.info(f"Sent response to user {user_id}")
 
-        formatted_response = f"\n\n{format_html(bot_response)}"
+        formatted_response = format_html(bot_response)
         message_parts = split_long_message(formatted_response)
 
         for part in message_parts:
-            await update.message.reply_text(part, parse_mode=ParseMode.HTML)
+            try:
+                await update.message.reply_text(part, parse_mode=ParseMode.HTML)
+            except BadRequest as e:
+                logger.error(f"Error sending message: {str(e)}")
+                # Если возникла ошибка при отправке с HTML-разметкой, отправляем без разметки
+                await update.message.reply_text(html.unescape(part), parse_mode=None)
+
     except Exception as e:
         logger.error(f"Error processing request for user {user_id}: {str(e)}")
         await update.message.reply_text(f"<b>Ошибка:</b> Произошла ошибка при обработке вашего запроса: <code>{str(e)}</code>", parse_mode=ParseMode.HTML)
+
+
 
 
 @check_auth
@@ -427,4 +389,5 @@ async def remove_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"Пользователь {remove_user_id} успешно удален.")
     except (ValueError, IndexError):
         await update.message.reply_text("Пожалуйста, укажите корректный ID пользователя.")
+
 
