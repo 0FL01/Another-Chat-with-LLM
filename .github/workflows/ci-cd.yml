@@ -123,15 +123,9 @@ jobs:
             cat << 'EOF' > .env
             GROQ_API_KEY=${{ secrets.GROQ_API_KEY }}
             TELEGRAM_TOKEN=${{ secrets.TELEGRAM_TOKEN }}
-            OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}
             MISTRAL_API_KEY=${{ secrets.MISTRAL_API_KEY }}
-            HYPERBOLIC_API_KEY=${{ secrets.HYPERBOLIC_API_KEY }}
-            TOGETHER_API_KEY=${{ secrets.TOGETHER_API_KEY }}
-            HF_API_KEY=${{ secrets.HF_API_KEY }}
-            GH_TOKEN=${{ secrets.GH_TOKEN }}
             GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
             ADMIN_ID=${{ secrets.ADMIN_ID }}
-            PROMPT_IMPROVEMENT_SYSTEM_MESSAGE=${{ secrets.PROMPT_IMPROVEMENT_SYSTEM_MESSAGE }}
             SYSTEM_MESSAGE=${{ secrets.SYSTEM_MESSAGE }}
             POSTGRES_DB=${{ secrets.POSTGRES_DB }}
             POSTGRES_USER=${{ secrets.POSTGRES_USER }}
@@ -153,14 +147,9 @@ jobs:
                 restart: unless-stopped
                 volumes:
                   - ./.env:/app/.env:ro
-                  - ./logs:/app/logs
-            volumes:
-              logs: {}
             EOF
             echo "docker-compose.yml file created."
-        
-            mkdir -p ./logs
-        
+                
             echo "Using Docker Image: ${DOCKER_IMAGE}:${SHORT_SHA_VALUE}"
         
             echo "Pulling Docker image..."
