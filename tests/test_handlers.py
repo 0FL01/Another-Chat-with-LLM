@@ -84,6 +84,7 @@ def mock_api_clients(mocker):
 
     mocker.patch('handlers.gemini_client.GenerativeModel', return_value=mock_generative_model_instance, create=True)
     mocker.patch('handlers.gemini_client', new_callable=MagicMock, create=True)
+    mocker.patch('handlers.gemini_client.GenerativeModel', return_value=mock_generative_model_instance, create=True)
 
     mock_download = AsyncMock(return_value=b'fake_file_content')
     mocker.patch('telegram.File.download_as_bytearray', mock_download)
